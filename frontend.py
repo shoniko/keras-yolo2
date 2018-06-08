@@ -12,6 +12,7 @@ from keras.optimizers import SGD, Adam, RMSprop
 from preprocessing import BatchGenerator
 from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 from backend import TinyYoloFeature, FullYoloFeature, MobileNetFeature, SqueezeNetFeature, Inception3Feature, VGG16Feature, ResNet50Feature
+import sys
 
 class YOLO(object):
     def __init__(self, backend,
@@ -83,6 +84,16 @@ class YOLO(object):
         # print a summary of the whole model
         self.model.summary()
 
+    def custom_tf_print(self, op, tensors, message=None, suffix=None):
+        def print_message(x):
+            sys.stdout.write(message + "%s" % x + suffix + "\n")
+            return x
+
+        prints = [tf.py_func(print_message, [tensor], tensor.dtype) for tensor in tensors]
+        with tf.control_dependencies(prints):
+            op = tf.identity(op)
+        return op
+        
     def custom_loss(self, y_true, y_pred):
         mask_shape = tf.shape(y_true)[:4]
         
@@ -237,6 +248,13 @@ class YOLO(object):
             loss = tf.Print(loss, [current_recall], message='Current Recall \t', summarize=1000)
             loss = tf.Print(loss, [total_recall/seen], message='Average Recall \t', summarize=1000)
         
+            loss = self.custom_tf_print(loss, [loss_xy], message='{"metric": "Loss XY", "value": ', suffix="}")
+            loss = self.custom_tf_print(loss, [loss_wh], message='{"metric": "Loss WH", "value": ', suffix="}")
+            loss = self.custom_tf_print(loss, [loss_conf], message='{"metric": "Loss Conf", "value": ', suffix="}")
+            loss = self.custom_tf_print(loss, [loss_class], message='{"metric": "Loss Class", "value": ', suffix="}")
+            loss = self.custom_tf_print(loss, [loss], message='{"metric": "Total Loss", "value": ', suffix="}")
+            loss = self.custom_tf_print(loss, [current_recall], message='{"metric": "Current Recall", "value": ', suffix="}")
+            loss = self.custom_tf_print(loss, [total_recall/seen], message='{"metric": "Average Recall", "value": ', suffix="}")
         return loss
 
     def load_weights(self, weight_path):
@@ -306,7 +324,7 @@ class YOLO(object):
 
         early_stop = EarlyStopping(monitor='val_loss', 
                            min_delta=0.001, 
-                           patience=3, 
+                           patience=5, 
                            mode='min', 
                            verbose=1)
         checkpoint = ModelCheckpoint(saved_weights_name, 
@@ -315,7 +333,9 @@ class YOLO(object):
                                      save_best_only=True, 
                                      mode='min', 
                                      period=1)
-        tensorboard = TensorBoard(log_dir=os.path.expanduser('~/logs/'), 
+        #Uncomment the line below for local run, not FloydHub
+        #        tensorboard = TensorBoard(log_dir=os.path.expanduser('~/logs/'), 
+        tensorboard = TensorBoard(log_dir=os.path.expanduser('/output/logs/'), 
                                   histogram_freq=0, 
                                   #write_batch_performance=True,
                                   write_graph=True, 
@@ -347,7 +367,7 @@ class YOLO(object):
 
     def evaluate(self, 
                  generator, 
-                 iou_threshold=0.3,
+                 iou_threshold=0.01,
                  score_threshold=0.3,
                  max_detections=100,
                  save_path=None):
