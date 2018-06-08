@@ -63,18 +63,31 @@ def draw_boxes(image, boxes, labels):
         ymin = int(box.ymin*image_h)
         xmax = int(box.xmax*image_w)
         ymax = int(box.ymax*image_h)
+        
+        boxColor = (0,0,255)
+        foreColor = (0,255,255)
 
-        cv2.rectangle(image, (xmin,ymin), (xmax,ymax), (0,255,0), 3)
+        # First label is for newsfeed
+        if (box.get_label() == 0):
+            boxColor = (0,255,0)
+            foreColor = (0,0,0)
+        
+        text = labels[box.get_label()] + ' ' + str(box.get_score())
+        textSize = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX,
+                                    1e-3 * image_h, 2)[0]
+
+        cv2.rectangle(image, (xmin,ymin), (xmax,ymax), boxColor, 4)
+        cv2.rectangle(image, (xmax - textSize[0] - 20,ymin), (xmax,ymin - textSize[1] - 10), boxColor, -1)
         cv2.putText(image, 
-                    labels[box.get_label()] + ' ' + str(box.get_score()), 
-                    (xmin, ymin - 13), 
+                    text, 
+                    (xmax - textSize[0] - 10, ymin - 10), 
                     cv2.FONT_HERSHEY_SIMPLEX, 
-                    1e-3 * image_h, 
-                    (0,255,0), 2)
+                    1e-3 * image_h,
+                    foreColor, 2)
         
     return image          
         
-def decode_netout(netout, anchors, nb_class, obj_threshold=0.3, nms_threshold=0.3):
+def decode_netout(netout, anchors, nb_class, obj_threshold=0.3, nms_threshold=0.01):
     grid_h, grid_w, nb_box = netout.shape[:3]
 
     boxes = []
