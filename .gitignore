@@ -1,3 +1,5 @@
 weights/
 tfexport/
 __pycache__
+config-local.json
+.floydexpt
